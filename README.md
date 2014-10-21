@@ -1,4 +1,4 @@
-excluidor
+Excluidor
 =========
 
-Pequeno programa Java para exclusão de diretórios. Este código permite a exclusão de diretórios que o windows não consegue excluir por apresentarem erros como file name too long.
+Pequeno programa para estudo Java que realiza a exclusão de diretórios com nomes extensos (que apresentam erros too long file name).
