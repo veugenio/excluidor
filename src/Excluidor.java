@@ -4,10 +4,12 @@ import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 
 import javax.swing.DefaultListModel;
@@ -108,21 +110,54 @@ public class Excluidor {
 		return file;
 	}
 	private int deleteFile(Path file) {
-		
+		return this.deleteFile(file, 1);
+	}
+	private int deleteFile(Path file, int attempt) {
 		try	{
 			Files.delete(file);
 		} catch (NoSuchFileException x) {
 			Logger.log("O arquivo não existe: ".concat(file.toString()));
 		} catch (DirectoryNotEmptyException x) {
-			Logger.log("O arquivo não está vazio: ".concat(file.toString()));
+			Logger.log("O diretório não está vazio: ".concat(file.toString()));
+			if (attempt < MAX_ATTEMPTS) {
+				Logger.log("Tentando apagar o conteúdo.");
+				try {
+					Files.walkFileTree(file, new SimpleFileVisitor<Path>(){
+						@SuppressWarnings("unused")
+						public FileVisitResult visitFile(Path file1) throws IOException {
+							deleteFile(file1);
+							return null;
+						}
+						@SuppressWarnings("unused")
+						public FileVisitResult postVisitDirectory(Path dir, Exception e) {
+							if (e == null) {
+								deleteFile(dir);
+								return FileVisitResult.CONTINUE;	
+							} else {
+								moveAndTryDelete(dir);
+							}
+							return null;
+						}
+					});
+				} catch (IOException e) {
+					Logger.log("Não foi possível excluir o conteúdo do diretório: ".concat(file.toString()));
+					moveAndTryDelete(file);
+				}
+			}
+			return 0;
 		} catch (IOException x) {
 			Logger.log("Movendo o arquivo para diretorio temporário: ".concat(file.toString()));
-			moveToTmp(file);
+			moveAndTryDelete(file);
 		} catch (Exception x) {
 			Logger.log("Falha ao tentar excluir o arquivo: ".concat(x.getMessage()));
 			return 1;
 		}
 		return 0;
+	}
+	// TODO adicionar o attempt para evitar um laço infinito
+	private void moveAndTryDelete(Path file) {
+		Path file2 = moveToTmp(file);
+		deleteFile(file2);
 	}
 	private int processFiles() {
 		int total = fileList.size();
@@ -131,6 +166,7 @@ public class Excluidor {
 			int err = deleteFile(Paths.get(file));
 			if (err > 0)
 				return err;
+			fileList.remove(i);
 		}
 		return 0;
 	}
